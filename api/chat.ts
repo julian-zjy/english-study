@@ -1,4 +1,4 @@
-import { handleChat } from './_lib/study-api-core';
+import { handleChat } from './_lib/study-api-core.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

@@ -1,4 +1,4 @@
-import { handleSessionSync } from '../_lib/study-api-core';
+import { handleSessionSync } from '../_lib/study-api-core.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
