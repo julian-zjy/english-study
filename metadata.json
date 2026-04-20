@@ -1,0 +1,6 @@
+{
+  "name": "HCI Chat Study",
+  "description": "A minimal full-stack mobile-first web app for a text-chat experiment (HCI study). Features 3 randomized chatbot conditions, survey flow, and data export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
