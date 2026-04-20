@@ -151,6 +151,18 @@ function applyNeutralLengthFallback(reply: string) {
   return `${reply.trim()} ${supportiveSentence} What speaking situation feels most challenging for you right now?`.trim();
 }
 
+function applyCorrectiveLengthFallback(reply: string) {
+  const expansionSentence =
+    'With steady practice in real speaking situations, this pattern can improve step by step.';
+  const { mainReply, followup } = splitMainReplyAndFollowup(reply);
+
+  if (followup) {
+    return `${mainReply} ${expansionSentence} ${followup}`.trim();
+  }
+
+  return `${reply.trim()} ${expansionSentence} What speaking situation do you want to practice first?`.trim();
+}
+
 function hasForbiddenCorrectiveLabels(text: string) {
   return /(part\s*1\s*:|part\s*2\s*:|better\s*:|improved\s*:)/i.test(text);
 }
@@ -476,6 +488,8 @@ async function startServer() {
              - Segment 2 = your conversational response with one follow-up question.
              - Do NOT use labels like "Part 1", "Part 2", "Better", "Improved", or any numbered section markers.
              - Do NOT repeat the same correction content in Segment 2.
+             - Segment 1 should usually be about 8-15 English words.
+             - Segment 2 should usually be about 35-55 English words across 2-3 natural sentences.
              Keep total visible output for this turn (Segment 1 + Segment 2) around ${BOT_VISIBLE_WORD_TARGETS.A.targetMin}-${BOT_VISIBLE_WORD_TARGETS.A.targetMax} English words.
              Keep Segment 1 usually short (about 8-15 words) so total visible output does not become longer than other conditions.`,
       'B': `${basePrompt}
@@ -542,7 +556,7 @@ async function startServer() {
                 role: 'system',
                 content:
                   condition === 'A'
-                    ? `Retry with strict constraints: total visible output must be ${lengthConfig.hardMin}-${lengthConfig.hardMax} English words. Use exactly two segments separated by '|||', no labels like Part 1/Part 2/Better/Improved, and avoid repeating correction content in segment 2.`
+                    ? `Retry with strict constraints for Corrective: total visible output must be ${lengthConfig.hardMin}-${lengthConfig.hardMax} English words. Use exactly two segments separated by '|||'. Segment 1 must be a brief correction (about 8-15 words). Segment 2 must be a natural 2-3 sentence reply with one follow-up question (about 35-55 words). Do not use labels like Part 1/Part 2/Better/Improved, and do not repeat correction content in Segment 2.`
                     : condition === 'B'
                       ? `Retry with strict constraints for Neutral: write 2-3 full sentences, including one brief acknowledgment, one fuller response sentence, and one natural follow-up question. Keep total visible output between ${BOT_VISIBLE_WORD_TARGETS.B.targetMin} and ${BOT_VISIBLE_WORD_TARGETS.B.targetMax} English words. Do not be clipped or overly concise.`
                       : `Retry with strict constraints: total visible output must be ${lengthConfig.hardMin}-${lengthConfig.hardMax} English words.`,
@@ -567,6 +581,14 @@ async function startServer() {
 
         const metrics = computeBotVisibleMetrics(condition, correction, reply);
         const hasForbiddenLabels = condition === 'A' && hasForbiddenCorrectiveLabels(fullContent);
+        if (condition === 'A') {
+          console.log('[chat][A] raw vs parsed', {
+            raw_word_count: countEnglishWords(fullContent),
+            parsed_correction_word_count: metrics.bot_correction_word_count,
+            parsed_main_reply_word_count: metrics.bot_main_reply_word_count,
+            parsed_total_visible_word_count: metrics.bot_visible_word_count,
+          });
+        }
         return { correction, reply, metrics, hasForbiddenLabels };
       };
 
@@ -597,6 +619,17 @@ async function startServer() {
         };
       }
 
+      let correctiveFallbackApplied = false;
+      if (condition === 'A' && generated.metrics.bot_visible_word_count < BOT_VISIBLE_WORD_TARGETS.A.hardMin) {
+        correctiveFallbackApplied = true;
+        const expandedReply = applyCorrectiveLengthFallback(generated.reply);
+        generated = {
+          ...generated,
+          reply: expandedReply,
+          metrics: computeBotVisibleMetrics(condition, generated.correction, expandedReply),
+        };
+      }
+
       storedSession.botTurnMetrics = Array.isArray(storedSession.botTurnMetrics)
         ? storedSession.botTurnMetrics
         : [];
@@ -607,6 +640,7 @@ async function startServer() {
         regenerated_for_length: regeneratedForLength,
         regenerated_for_format: regeneratedForFormat,
         neutral_fallback_applied: neutralFallbackApplied,
+        corrective_fallback_applied: correctiveFallbackApplied,
         ...generated.metrics,
       });
       await saveStoredSession(storedSession);
@@ -621,6 +655,7 @@ async function startServer() {
         regenerated_for_length: regeneratedForLength,
         regenerated_for_format: regeneratedForFormat,
         neutral_fallback_applied: neutralFallbackApplied,
+        corrective_fallback_applied: correctiveFallbackApplied,
       });
 
       res.json({
@@ -633,6 +668,7 @@ async function startServer() {
         regenerated_for_length: regeneratedForLength,
         regenerated_for_format: regeneratedForFormat,
         neutral_fallback_applied: neutralFallbackApplied,
+        corrective_fallback_applied: correctiveFallbackApplied,
       });
     } catch (error: any) {
       console.error("OpenAI Error:", error);
