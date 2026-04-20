@@ -662,11 +662,11 @@ export default function App() {
                   <div className="flex gap-2 p-2 bg-white border-2 border-slate-200 rounded-2xl focus-within:border-sky-500 transition-colors">
                     <input 
                       readOnly 
-                      value="https://english-study-app.vercel.app" 
+                      value="https://english-study-omega.vercel.app/" 
                       className="flex-1 bg-transparent border-none text-[13px] font-bold text-slate-800 focus:ring-0 overflow-hidden text-ellipsis px-2"
                     />
                     <button 
-                      onClick={() => copyToClipboard("https://english-study-app.vercel.app")}
+                      onClick={() => copyToClipboard("https://english-study-omega.vercel.app/")}
                       className="px-4 py-2 bg-sky-500 text-white text-[11px] font-black rounded-xl transition-all active:scale-90 shrink-0"
                     >
                       複製連結
