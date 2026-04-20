@@ -218,6 +218,65 @@ function stripLeadingCorrectiveLabels(text: string) {
     .trim();
 }
 
+function isNoCorrectionText(text: string) {
+  return /(no correction needed|already natural|no changes needed|looks good as is)/i.test(text.trim());
+}
+
+function stripCorrectionFromMainReply(reply: string, correction: string) {
+  let cleaned = reply.trim();
+  if (!cleaned) return '';
+
+  const sentences = cleaned.split(/(?<=[?.!])\s+/).filter(Boolean);
+  const filtered = sentences.filter((sentence) => {
+    return !/(a more natural way to say|you could say|better[:]?|improved[:]?|correction[:]?|try saying)/i.test(
+      sentence
+    );
+  });
+  cleaned = filtered.join(' ').trim();
+
+  if (correction) {
+    const escaped = correction.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(escaped, 'ig'), '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  return cleaned;
+}
+
+function parseCorrectiveOutput(fullContent: string) {
+  let correction = '';
+  let reply = fullContent || '';
+
+  if (fullContent.includes('|||')) {
+    const parts = fullContent.split('|||');
+    correction = stripLeadingCorrectiveLabels(parts[0] || '');
+    reply = stripLeadingCorrectiveLabels(parts.slice(1).join('|||') || '');
+  } else {
+    const segments = fullContent.trim().split(/(?<=[?.!])\s+/).filter(Boolean);
+    const first = segments[0] || '';
+    if (/(a more natural way to say|you could say|better[:]?|improved[:]?|correction[:]?|try saying)/i.test(first)) {
+      correction = stripLeadingCorrectiveLabels(first);
+      reply = segments.slice(1).join(' ').trim();
+    } else {
+      correction = '';
+      reply = stripLeadingCorrectiveLabels(fullContent);
+    }
+  }
+
+  if (isNoCorrectionText(correction)) {
+    correction = '';
+  }
+
+  if (correction) {
+    reply = stripCorrectionFromMainReply(reply, correction);
+  }
+
+  if (!reply) {
+    reply = 'Thanks for sharing that. Could you tell me more about one speaking situation that feels difficult for you?';
+  }
+
+  return { correction, reply };
+}
+
 const basePrompt = `You are a chatbot in a text-based English learning study.
 Always reply in English.
 Be friendly, polite, empathetic, and natural.
@@ -430,13 +489,10 @@ export async function handleChat(body: any) {
     let correction = '';
     let reply = fullContent;
 
-    if (condition === 'A' && fullContent.includes('|||')) {
-      const parts = fullContent.split('|||');
-      correction = stripLeadingCorrectiveLabels(parts[0] || '');
-      reply = stripLeadingCorrectiveLabels(parts.slice(1).join('|||') || '');
-    } else if (condition === 'A') {
-      correction = '';
-      reply = stripLeadingCorrectiveLabels(fullContent);
+    if (condition === 'A') {
+      const parsed = parseCorrectiveOutput(fullContent);
+      correction = parsed.correction;
+      reply = parsed.reply;
     }
 
     const metrics = computeBotVisibleMetrics(condition, correction, reply);

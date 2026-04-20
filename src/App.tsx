@@ -336,10 +336,11 @@ export default function App() {
       }
 
       const botMessagesToAdd: ChatMessage[] = [];
-      if (data.correction) {
+      const correctionText = typeof data.correction === 'string' ? data.correction.trim() : '';
+      if (correctionText.length > 0) {
         botMessagesToAdd.push({
           role: 'assistant',
-          content: data.correction,
+          content: correctionText,
           timestamp: new Date().toISOString(),
           conditionLabel: 'Correction'
         });
